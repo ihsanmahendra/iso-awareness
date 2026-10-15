@@ -22,7 +22,29 @@ Peserta membaca materi lalu mengerjakan kuis pilihan ganda (a, b, c, d). Admin m
 **Super Admin**
 - Menambah dan menghapus akun admin serta mereset password admin (menu *Kelola Admin*).
 
-## Menjalankan
+## Cara menjalankan (untuk pemula)
+
+**Langkah 1 – Pasang Node.js (sekali saja)**
+Buka https://nodejs.org, unduh versi **LTS**, lalu pasang dengan klik *Next* sampai selesai.
+
+**Langkah 2 – Unduh aplikasi**
+Di halaman GitHub repo ini, klik tombol hijau **Code** → **Download ZIP**, lalu ekstrak (klik kanan → *Extract All*).
+
+**Langkah 3 – Jalankan**
+- **Windows:** buka folder hasil ekstrak, klik dua kali **`jalankan-windows.bat`**.
+- **Mac / Linux:** buka Terminal di folder tersebut, ketik `./jalankan-mac-linux.sh`.
+
+Pertama kali dijalankan butuh internet (1–2 menit) untuk memasang komponen. Setelah itu browser terbuka otomatis ke http://localhost:3000.
+**Jangan tutup jendela hitam (Command Prompt)** selama aplikasi dipakai. Menutupnya = aplikasi berhenti.
+
+**Langkah 4 – Login admin**
+Buka http://localhost:3000/admin, login dengan `admin` / `admin12345`, lalu segera ganti password lewat menu *Ganti Password*.
+
+**Agar peserta lain bisa mengakses** (satu jaringan Wi‑Fi/LAN kantor): cari IP komputer ini
+(Windows: buka Command Prompt, ketik `ipconfig`, lihat *IPv4 Address*, mis. `192.168.1.20`),
+lalu peserta membuka `http://192.168.1.20:3000` di browser mereka. Jika tidak bisa dibuka, izinkan Node.js di Windows Firewall.
+
+## Menjalankan (lewat terminal)
 
 Butuh **Node.js 22.13 atau lebih baru** (memakai SQLite bawaan Node, tanpa instalasi database).
 
