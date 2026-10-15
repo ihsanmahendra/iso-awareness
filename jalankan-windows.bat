@@ -7,7 +7,8 @@ if errorlevel 1 goto nonode
 node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||(a===22&&b>=13)?0:1)"
 if errorlevel 1 goto oldnode
 
-if exist node_modules goto run
+node -e "const d=Object.keys(require('./package.json').dependencies);for(const x of d)require.resolve(x)" >nul 2>nul
+if not errorlevel 1 goto run
 echo Memasang komponen aplikasi, tunggu sebentar...
 call npm install
 if errorlevel 1 goto installfail

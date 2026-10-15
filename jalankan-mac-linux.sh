@@ -10,7 +10,7 @@ if ! node -e "const [a,b]=process.versions.node.split('.').map(Number);process.e
   echo "Versi Node.js terlalu lama ($(node -v)). Pasang versi LTS terbaru dari https://nodejs.org."
   exit 1
 fi
-if [ ! -d node_modules ]; then
+if ! node -e "const d=Object.keys(require('./package.json').dependencies);for(const x of d)require.resolve(x)" >/dev/null 2>&1; then
   echo "Memasang komponen aplikasi, tunggu sebentar..."
   npm install || { echo "Gagal memasang komponen. Periksa koneksi internet."; exit 1; }
 fi
