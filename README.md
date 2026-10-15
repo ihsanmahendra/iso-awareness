@@ -75,3 +75,7 @@ public/style.css       tampilan (mendukung mode gelap)
 - Kuota token dikurangi secara atomik, jadi token tidak bisa dipakai melebihi batas.
 - Cookie sesi `httpOnly` + `SameSite=Strict`, POST lintas origin ditolak, semua output di-escape.
 - Sesi disimpan di memori (*MemoryStore*): peserta yang sedang mengerjakan perlu masuk ulang jika server di-restart. Untuk beban besar atau beberapa instance, ganti dengan session store berbasis database/Redis.
+
+## Lisensi
+
+Dirilis di bawah [Lisensi MIT](LICENSE) © 2026 Muhammad Ihsan Mahendra.

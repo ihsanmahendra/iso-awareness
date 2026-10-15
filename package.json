@@ -4,6 +4,8 @@
   "description": "Aplikasi web ISO Awareness: modul materi + kuis pilihan ganda, akses token, multi-admin",
   "main": "server.js",
   "private": true,
+  "license": "MIT",
+  "author": "Muhammad Ihsan Mahendra",
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server.js"
