@@ -1,0 +1,77 @@
+# ISO Awareness – Aplikasi Pelatihan & Kuis Berbasis Web
+
+Aplikasi web untuk pelatihan *awareness* standar ISO (9001, 14001, 45001, 27001, dll.).
+Peserta membaca materi lalu mengerjakan kuis pilihan ganda (a, b, c, d). Admin membuat modul, soal, dan token peserta.
+
+## Fitur
+
+**Peserta**
+- Beranda berisi daftar modul yang dipublikasikan, ditandai 🔒 *Butuh Token* atau *Terbuka*.
+- Kotak "Punya token peserta?" di beranda langsung membuka modul milik token tersebut.
+- Modul wajib token tidak bisa dibuka tanpa token yang valid. Token dicek setiap kali halaman materi atau kuis dibuka: aktif, belum kedaluwarsa, dan kuota pengerjaan belum habis.
+- Kuis pilihan ganda a–d dinilai di server. Setelah kuis, peserta melihat nilai, status lulus/tidak, dan pembahasan (bisa dimatikan per modul).
+
+**Admin (ruang kerja terpisah)**
+- Setiap admin login dengan akunnya sendiri dan **hanya melihat dan mengelola modul miliknya**: soal, token, dan hasil peserta. Akses ke modul admin lain menghasilkan 404.
+- Modul: judul, standar ISO, deskripsi, materi, jenis akses (wajib token / terbuka), nilai lulus, acak soal, tampilkan pembahasan, draft/publik.
+- Soal: tambah, edit, hapus, ubah urutan, **import massal** (satu baris per soal):
+  `Pertanyaan | pilihan a | pilihan b | pilihan c | pilihan d | jawaban (a/b/c/d) | pembahasan`
+- Token peserta: dibuat **atas nama** peserta (satu nama per baris) atau tanpa nama sejumlah tertentu. Bisa diatur maksimal kesempatan mengerjakan dan tanggal berlaku. Token bisa dinonaktifkan, di-reset, dihapus, dan diunduh sebagai CSV.
+- Hasil: daftar peserta, nilai, status lulus, dan statistik modul, bisa diunduh sebagai CSV.
+
+**Super Admin**
+- Menambah dan menghapus akun admin serta mereset password admin (menu *Kelola Admin*).
+
+## Menjalankan
+
+Butuh **Node.js 22.13 atau lebih baru** (memakai SQLite bawaan Node, tanpa instalasi database).
+
+```bash
+npm install
+npm start
+```
+
+Buka http://localhost:3000 (peserta) dan http://localhost:3000/admin (admin).
+
+Saat pertama kali dijalankan, aplikasi membuat:
+- Super admin: `admin` / `admin12345`. **Segera ganti password.**
+- Data demo: admin `it.security` / `demo12345` (modul ISO 27001, wajib token) dan `qhse` / `demo12345` (modul ISO 9001, terbuka). Token demo ditampilkan di log konsol.
+
+## Konfigurasi (environment variable)
+
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `PORT` | `3000` | Port server |
+| `ADMIN_USER` / `ADMIN_PASS` | `admin` / `admin12345` | Super admin awal (hanya dipakai saat database masih kosong) |
+| `SEED_DEMO` | `1` | Isi `0` untuk tidak membuat data demo |
+| `DATA_DIR` | `./data` | Lokasi database SQLite |
+| `SESSION_SECRET` | dibuat otomatis | Secret cookie sesi |
+| `COOKIE_SECURE` | `0` | Isi `1` jika memakai HTTPS |
+| `TRUST_PROXY` | `0` | Isi `1` jika di belakang reverse proxy (nginx, dll.) |
+
+Contoh produksi:
+```bash
+ADMIN_PASS='PasswordKuat!2026' SEED_DEMO=0 COOKIE_SECURE=1 TRUST_PROXY=1 npm start
+```
+
+Untuk reset total, hentikan server lalu hapus folder `data/`.
+
+## Struktur
+
+```
+server.js              entry point, sesi, keamanan dasar
+src/db.js              skema SQLite (admins, modules, questions, tokens, attempts)
+src/routes/public.js   halaman peserta: beranda, token, materi, kuis, hasil
+src/routes/admin.js    panel admin: modul, soal, token, hasil, kelola admin
+src/views.js           template HTML (auto-escape)
+src/seed.js            data demo
+public/style.css       tampilan (mendukung mode gelap)
+```
+
+## Keamanan
+
+- Password di-hash dengan scrypt. Login dan input token dibatasi jumlah percobaannya.
+- Kunci jawaban tidak pernah dikirim ke browser sebelum kuis dikirim.
+- Kuota token dikurangi secara atomik, jadi token tidak bisa dipakai melebihi batas.
+- Cookie sesi `httpOnly` + `SameSite=Strict`, POST lintas origin ditolak, semua output di-escape.
+- Sesi disimpan di memori (*MemoryStore*): peserta yang sedang mengerjakan perlu masuk ulang jika server di-restart. Untuk beban besar atau beberapa instance, ganti dengan session store berbasis database/Redis.

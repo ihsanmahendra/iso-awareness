@@ -1,0 +1,18 @@
+{
+  "name": "iso-awareness",
+  "version": "1.0.0",
+  "description": "Aplikasi web ISO Awareness: modul materi + kuis pilihan ganda, akses token, multi-admin",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch server.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-session": "^1.18.1"
+  }
+}
