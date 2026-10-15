@@ -1,15 +1,11 @@
 const express = require('express');
 const { db, tx } = require('../db');
-const { html, layout } = require('../views');
+const { html } = require('../views');
 const { hashPassword, verifyPassword, randomToken, rateLimiter, csv, toInt } = require('../util');
+const { LETTERS, flash, page, str, ownModule, moduleShell } = require('./admin-common');
 
 const router = express.Router();
 const loginLimit = rateLimiter({ max: 10, windowMs: 15 * 60 * 1000 });
-const LETTERS = ['A', 'B', 'C', 'D'];
-
-const flash = (req, type, msg) => { req.session.flash = { type, msg }; };
-const page = (req, title, body) => layout(req, { title, body, area: 'admin' });
-const str = (v, max = 200) => String(v ?? '').trim().slice(0, max);
 
 // ---------- Auth ----------
 router.use((req, res, next) => {
@@ -55,14 +51,6 @@ router.use((req, res, next) => (req.admin ? next() : res.redirect('/admin/login'
 
 function requireSuper(req, res, next) {
   if (req.admin.role !== 'super') return res.status(403).send(page(req, 'Akses ditolak', html`<h1>Akses ditolak</h1>`));
-  next();
-}
-
-// Modul hanya bisa diakses oleh admin pemiliknya.
-function ownModule(req, res, next) {
-  const mod = db.prepare('SELECT * FROM modules WHERE id = ? AND admin_id = ?').get(+req.params.id, req.admin.id);
-  if (!mod) return res.status(404).send(page(req, 'Tidak ditemukan', html`<h1>Modul tidak ditemukan</h1><p><a href="/admin">Kembali</a></p>`));
-  req.mod = mod;
   next();
 }
 
@@ -150,6 +138,16 @@ function moduleForm(req, m, action) {
         <label class="check"><input type="checkbox" name="show_answers" value="1" ${m.show_answers ?? 1 ? 'checked' : ''}> Tampilkan pembahasan setelah kuis</label>
         <label class="check"><input type="checkbox" name="shuffle" value="1" ${m.shuffle ? 'checked' : ''}> Acak urutan soal</label>
       </div>
+      <fieldset class="group">
+        <legend>Sertifikat</legend>
+        <label class="check"><input type="checkbox" name="cert_enabled" value="1" ${m.cert_enabled ?? 1 ? 'checked' : ''}> Berikan sertifikat (PDF) kepada peserta yang lulus</label>
+        <div class="grid2">
+          <label>Nama organisasi / penyelenggara <input name="cert_org" value="${m.cert_org || ''}" maxlength="120" placeholder="${req.admin.display_name}"></label>
+          <label>Kota penerbitan <span class="muted small">(opsional)</span><input name="cert_city" value="${m.cert_city || ''}" maxlength="60" placeholder="mis. Jakarta"></label>
+          <label>Nama penanda tangan <input name="cert_signer_name" value="${m.cert_signer_name || ''}" maxlength="100" placeholder="mis. Ir. Budi Hartono"></label>
+          <label>Jabatan penanda tangan <input name="cert_signer_title" value="${m.cert_signer_title || ''}" maxlength="100" placeholder="mis. Management Representative"></label>
+        </div>
+      </fieldset>
       <div class="actions"><button class="primary">Simpan</button> <a class="btn" href="${m.id ? `/admin/modules/${m.id}` : '/admin'}">Batal</a></div>
     </form>`;
 }
@@ -165,8 +163,16 @@ function readModuleBody(body) {
     published: body.published ? 1 : 0,
     show_answers: body.show_answers ? 1 : 0,
     shuffle: body.shuffle ? 1 : 0,
+    cert_enabled: body.cert_enabled ? 1 : 0,
+    cert_org: str(body.cert_org, 120),
+    cert_city: str(body.cert_city, 60),
+    cert_signer_name: str(body.cert_signer_name, 100),
+    cert_signer_title: str(body.cert_signer_title, 100),
   };
 }
+
+const MODULE_FIELDS = ['title', 'iso_standard', 'description', 'content', 'access', 'pass_score', 'published', 'show_answers', 'shuffle',
+  'cert_enabled', 'cert_org', 'cert_city', 'cert_signer_name', 'cert_signer_title'];
 
 router.get('/modules/new', (req, res) => {
   res.send(page(req, 'Modul Baru', html`<div class="panel"><h1>Modul Baru</h1>${moduleForm(req, {}, '/admin/modules')}</div>`));
@@ -175,8 +181,8 @@ router.get('/modules/new', (req, res) => {
 router.post('/modules', (req, res) => {
   const m = readModuleBody(req.body);
   if (!m.title) { flash(req, 'error', 'Judul wajib diisi.'); return res.redirect('/admin/modules/new'); }
-  const id = db.prepare(`INSERT INTO modules (admin_id, title, iso_standard, description, content, access, pass_score, published, show_answers, shuffle)
-    VALUES (?,?,?,?,?,?,?,?,?,?)`).run(req.admin.id, m.title, m.iso_standard, m.description, m.content, m.access, m.pass_score, m.published, m.show_answers, m.shuffle).lastInsertRowid;
+  const id = db.prepare(`INSERT INTO modules (admin_id, ${MODULE_FIELDS.join(', ')}) VALUES (?${', ?'.repeat(MODULE_FIELDS.length)})`)
+    .run(req.admin.id, ...MODULE_FIELDS.map((f) => m[f])).lastInsertRowid;
   flash(req, 'success', 'Modul dibuat. Sekarang tambahkan soal.');
   res.redirect(`/admin/modules/${id}/questions`);
 });
@@ -188,9 +194,8 @@ router.get('/modules/:id/edit', ownModule, (req, res) => {
 router.post('/modules/:id/edit', ownModule, (req, res) => {
   const m = readModuleBody(req.body);
   if (!m.title) { flash(req, 'error', 'Judul wajib diisi.'); return res.redirect(`/admin/modules/${req.mod.id}/edit`); }
-  db.prepare(`UPDATE modules SET title=?, iso_standard=?, description=?, content=?, access=?, pass_score=?, published=?, show_answers=?, shuffle=?,
-    updated_at=datetime('now','localtime') WHERE id=? AND admin_id=?`)
-    .run(m.title, m.iso_standard, m.description, m.content, m.access, m.pass_score, m.published, m.show_answers, m.shuffle, req.mod.id, req.admin.id);
+  db.prepare(`UPDATE modules SET ${MODULE_FIELDS.map((f) => `${f}=?`).join(', ')}, updated_at=datetime('now','localtime') WHERE id=? AND admin_id=?`)
+    .run(...MODULE_FIELDS.map((f) => m[f]), req.mod.id, req.admin.id);
   flash(req, 'success', 'Modul disimpan.');
   res.redirect(`/admin/modules/${req.mod.id}`);
 });
@@ -202,26 +207,6 @@ router.post('/modules/:id/delete', ownModule, (req, res) => {
 });
 
 // ---------- Detail modul (tab) ----------
-function moduleShell(req, tab, body) {
-  const m = req.mod;
-  const tabs = [['', 'Ringkasan'], ['questions', 'Soal'], ['tokens', 'Token Peserta'], ['results', 'Hasil']];
-  return page(req, m.title, html`
-    <p class="small"><a href="/admin">← Modul Saya</a></p>
-    <div class="head-row">
-      <div>
-        <h1>${m.title}</h1>
-        <div class="muted small">${m.iso_standard} ·
-          ${m.access === 'token' ? 'Wajib token' : 'Terbuka'} · ${m.published ? 'Publik' : 'Draft'}</div>
-      </div>
-      <div>
-        ${m.published ? html`<a class="btn" href="/m/${m.id}" target="_blank">Lihat sebagai peserta ↗</a>` : ''}
-        <a class="btn" href="/admin/modules/${m.id}/edit">Edit Modul</a>
-      </div>
-    </div>
-    <div class="tabs">${tabs.map(([k, label]) => html`<a class="${tab === k ? 'active' : ''}" href="/admin/modules/${m.id}${k ? '/' + k : ''}">${label}</a>`)}</div>
-    ${body}`);
-}
-
 router.get('/modules/:id', ownModule, (req, res) => {
   const m = req.mod;
   const stats = db.prepare(`SELECT COUNT(*) AS n, ROUND(AVG(score)) AS avg, SUM(passed) AS passed FROM attempts WHERE module_id = ?`).get(m.id);
@@ -244,6 +229,15 @@ router.get('/modules/:id', ownModule, (req, res) => {
     <div class="panel">
       <h3>Deskripsi</h3><p>${m.description || html`<span class="muted">-</span>`}</p>
       <p class="muted small">Nilai lulus: ${m.pass_score} · Pembahasan: ${m.show_answers ? 'ditampilkan' : 'disembunyikan'} · Urutan soal: ${m.shuffle ? 'acak' : 'tetap'} · Diperbarui: ${m.updated_at}</p>
+    </div>
+    <div class="panel">
+      <h3>Sertifikat</h3>
+      ${m.cert_enabled
+        ? html`<p>Peserta yang lulus mendapat sertifikat PDF dengan QR code verifikasi.
+            Penanda tangan: <b>${m.cert_signer_name || req.admin.display_name}</b>${m.cert_signer_title ? ` (${m.cert_signer_title})` : ''}.</p>`
+        : html`<p class="muted">Sertifikat untuk peserta dimatikan. Aktifkan lewat Edit Modul.</p>`}
+      <a class="btn small" href="/admin/modules/${m.id}/certificate-preview.pdf">Pratinjau Sertifikat (PDF)</a>
+      <a class="btn small" href="/admin/modules/${m.id}/edit">Atur Sertifikat</a>
     </div>
     <div class="panel danger-zone">
       <h3>Hapus modul</h3>
@@ -488,45 +482,8 @@ router.post('/tokens/:tid/delete', ownToken, (req, res) => {
   res.redirect(`/admin/modules/${req.token.module_id}/tokens`);
 });
 
-// ---------- Hasil ----------
-const resultsQuery = `SELECT a.*, t.code AS token_code FROM attempts a LEFT JOIN tokens t ON t.id = a.token_id
-  WHERE a.module_id = ? ORDER BY a.id DESC`;
-
-router.get('/modules/:id/results', ownModule, (req, res) => {
-  const rows = db.prepare(resultsQuery).all(req.mod.id);
-  res.send(moduleShell(req, 'results', html`
-    <div class="panel">
-      <div class="head-row">
-        <h2>Hasil Peserta (${rows.length})</h2>
-        ${rows.length ? html`<a class="btn small" href="/admin/modules/${req.mod.id}/results.csv">Unduh CSV</a>` : ''}
-      </div>
-      ${rows.length === 0 ? html`<p class="muted">Belum ada peserta yang mengerjakan.</p>` : html`
-      <div class="table-wrap"><table>
-        <thead><tr><th>Waktu</th><th>Nama</th><th>Departemen</th><th>Token</th><th>Benar</th><th>Nilai</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows.map((r) => html`<tr>
-          <td class="nowrap">${r.created_at}</td><td>${r.participant_name}</td><td>${r.department || '-'}</td>
-          <td>${r.token_code ? html`<code>${r.token_code}</code>` : '-'}</td>
-          <td>${r.correct_count}/${r.total}</td><td><b>${r.score}</b></td>
-          <td>${r.passed ? html`<span class="badge open">Lulus</span>` : html`<span class="badge lock">Tidak lulus</span>`}</td>
-          <td><form method="post" action="/admin/modules/${req.mod.id}/results/${r.id}/delete" class="inline" onsubmit="return confirm('Hapus hasil ini?')"><button class="btn small danger">Hapus</button></form></td>
-        </tr>`)}</tbody>
-      </table></div>`}
-    </div>`));
-});
-
-router.get('/modules/:id/results.csv', ownModule, (req, res) => {
-  const rows = db.prepare(resultsQuery).all(req.mod.id);
-  res.type('text/csv').attachment(`hasil-modul-${req.mod.id}.csv`).send(csv([
-    ['Waktu', 'Nama', 'Departemen', 'Token', 'Benar', 'Total', 'Nilai', 'Status'],
-    ...rows.map((r) => [r.created_at, r.participant_name, r.department, r.token_code || '', r.correct_count, r.total, r.score, r.passed ? 'Lulus' : 'Tidak lulus']),
-  ]));
-});
-
-router.post('/modules/:id/results/:rid/delete', ownModule, (req, res) => {
-  db.prepare('DELETE FROM attempts WHERE id = ? AND module_id = ?').run(+req.params.rid, req.mod.id);
-  flash(req, 'success', 'Hasil dihapus.');
-  res.redirect(`/admin/modules/${req.mod.id}/results`);
-});
+// ---------- Peserta, rekap & sertifikat ----------
+router.use(require('./admin-results'));
 
 // ---------- Ganti password ----------
 router.get('/password', (req, res) => {

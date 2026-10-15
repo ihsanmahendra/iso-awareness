@@ -1,7 +1,8 @@
 const express = require('express');
-const { db, tx } = require('../db');
+const { db, tx, newCertCode } = require('../db');
 const { html, layout, richText } = require('../views');
 const { normalizeToken, rateLimiter, shuffle } = require('../util');
+const { sendCertificates, formatDate } = require('../certificate');
 
 const router = express.Router();
 const tokenLimit = rateLimiter({ max: 20, windowMs: 15 * 60 * 1000 });
@@ -246,8 +247,9 @@ router.post('/m/:id/quiz', requireAccess, (req, res) => {
         const r = db.prepare('UPDATE tokens SET used_count = used_count + 1 WHERE id = ? AND used_count < max_attempts AND active = 1').run(acc.tokenId);
         if (r.changes === 0) throw new Error('QUOTA');
       }
-      return db.prepare(`INSERT INTO attempts (module_id, token_id, participant_name, department, correct_count, total, score, passed, answers)
-        VALUES (?,?,?,?,?,?,?,?,?)`).run(mod.id, acc.tokenId, acc.name, acc.department || '', correctCount, qs.length, score, passed, JSON.stringify(answers)).lastInsertRowid;
+      return db.prepare(`INSERT INTO attempts (module_id, token_id, participant_name, department, correct_count, total, score, passed, answers, cert_code)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`).run(mod.id, acc.tokenId, acc.name, acc.department || '', correctCount, qs.length, score, passed,
+        JSON.stringify(answers), passed ? newCertCode() : null).lastInsertRowid;
     });
   } catch (e) {
     if (e.message !== 'QUOTA') throw e;
@@ -280,6 +282,14 @@ router.get('/result/:id', (req, res) => {
         <h2>${at.passed ? '🎉 Selamat, Anda LULUS!' : 'Belum Lulus'}</h2>
         <p>${at.participant_name} menjawab benar <b>${at.correct_count}</b> dari <b>${at.total}</b> soal. Nilai minimal lulus: ${mod.pass_score}.</p>
         <p class="muted small">Waktu: ${at.created_at}</p>
+        ${at.passed && mod.cert_enabled && at.cert_code ? html`
+          <div class="cert-box">
+            <div>🎓 <b>Sertifikat Anda sudah siap</b></div>
+            <div class="small">Nomor sertifikat: <code class="token">${at.cert_code}</code></div>
+            <a class="btn primary" href="/certificate/${at.cert_code}.pdf">Unduh Sertifikat (PDF)</a>
+            <div class="muted small">Simpan nomor ini. Sertifikat dapat diunduh lagi kapan saja lewat menu <a href="/sertifikat">Sertifikat</a>
+              menggunakan nomor sertifikat${at.token_id ? ' atau token Anda' : ''}.</div>
+          </div>` : ''}
         <a class="btn" href="/">Kembali ke Beranda</a>
       </div>
       ${mod.show_answers ? html`
@@ -301,6 +311,100 @@ router.get('/result/:id', (req, res) => {
               </div>`;
           })}
         </div>` : ''}`,
+  }));
+});
+
+// ---------- Sertifikat ----------
+const certLimit = rateLimiter({ max: 30, windowMs: 15 * 60 * 1000 });
+const normalizeCert = (s) => String(s || '').toUpperCase().replace(/\s+/g, '');
+
+// Data sertifikat yang sah: lulus & modul mengaktifkan sertifikat.
+function certByCode(code) {
+  const attempt = db.prepare('SELECT * FROM attempts WHERE cert_code = ? AND passed = 1').get(normalizeCert(code));
+  if (!attempt) return null;
+  const module = db.prepare('SELECT m.*, a.display_name AS owner_name FROM modules m JOIN admins a ON a.id = m.admin_id WHERE m.id = ?').get(attempt.module_id);
+  if (!module || !module.cert_enabled) return null;
+  return { attempt, module, ownerName: module.owner_name };
+}
+
+function certPage(req, { input = '', items = null, error = '' } = {}) {
+  return layout(req, {
+    title: 'Sertifikat',
+    body: html`
+      <div class="panel narrow">
+        <h1>🎓 Sertifikat Saya</h1>
+        <p class="muted">Masukkan <b>token peserta</b> atau <b>nomor sertifikat</b> untuk mengunduh sertifikat modul yang sudah Anda selesaikan dan lulus.</p>
+        ${error ? html`<div class="flash error">${error}</div>` : ''}
+        <form method="post" action="/sertifikat" class="row">
+          <input name="code" value="${input}" placeholder="XXXX-XXXX atau ISO-2026-XXXXXXXX" required maxlength="40" autocomplete="off">
+          <button class="primary">Cari</button>
+        </form>
+      </div>
+      ${items ? html`
+        <div class="panel narrow">
+          <h2>Hasil</h2>
+          ${items.length === 0 ? html`<p class="muted">Belum ada modul yang diselesaikan dengan status lulus.</p>` : ''}
+          ${items.map(({ attempt: a, module: m }) => html`
+            <div class="cert-item">
+              <div>
+                <b>${m.title}</b> ${m.iso_standard ? html`<span class="tag">${m.iso_standard}</span>` : ''}
+                <div class="muted small">${a.participant_name} · nilai ${a.score} · ${formatDate(a.created_at)} · No. ${a.cert_code}</div>
+              </div>
+              <a class="btn primary small" href="/certificate/${a.cert_code}.pdf">Unduh PDF</a>
+            </div>`)}
+        </div>` : ''}`,
+  });
+}
+
+router.get('/sertifikat', (req, res) => res.send(certPage(req)));
+
+router.post('/sertifikat', (req, res) => {
+  const input = String(req.body.code || '').trim().slice(0, 40);
+  if (!certLimit(req.ip)) return res.send(certPage(req, { input, error: 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.' }));
+
+  if (/^ISO-/i.test(input)) {
+    const c = certByCode(input);
+    return res.send(c ? certPage(req, { input, items: [c] }) : certPage(req, { input, error: 'Nomor sertifikat tidak ditemukan.' }));
+  }
+  const token = db.prepare('SELECT * FROM tokens WHERE code = ?').get(normalizeToken(input));
+  if (!token) return res.send(certPage(req, { input, error: 'Token atau nomor sertifikat tidak ditemukan.' }));
+  const items = db.prepare('SELECT cert_code FROM attempts WHERE token_id = ? AND passed = 1 ORDER BY score DESC, id DESC').all(token.id)
+    .map((r) => certByCode(r.cert_code)).filter(Boolean);
+  res.send(certPage(req, { input, items }));
+});
+
+router.get('/certificate/:code.pdf', async (req, res) => {
+  const c = certByCode(req.params.code);
+  if (!c) return res.status(404).send(layout(req, { title: 'Tidak ditemukan', body: html`<h1>Sertifikat tidak ditemukan</h1><p><a href="/sertifikat">Cari sertifikat</a></p>` }));
+  await sendCertificates(req, res, [c], `Sertifikat-${c.attempt.participant_name}-${c.attempt.cert_code}.pdf`);
+});
+
+// Halaman verifikasi (tujuan QR code di sertifikat).
+router.get('/verify/:code', (req, res) => {
+  const c = certByCode(req.params.code);
+  res.status(c ? 200 : 404).send(layout(req, {
+    title: 'Verifikasi Sertifikat',
+    body: c ? html`
+      <div class="panel narrow center">
+        <div class="verify ok">✔</div>
+        <h1>Sertifikat VALID</h1>
+        <p class="muted">Sertifikat ini terdaftar dan diterbitkan oleh sistem ISO Awareness.</p>
+        <table class="kv">
+          <tr><th>Nomor</th><td><code>${c.attempt.cert_code}</code></td></tr>
+          <tr><th>Nama</th><td><b>${c.attempt.participant_name}</b></td></tr>
+          ${c.attempt.department ? html`<tr><th>Departemen</th><td>${c.attempt.department}</td></tr>` : ''}
+          <tr><th>Modul</th><td>${c.module.title}</td></tr>
+          ${c.module.iso_standard ? html`<tr><th>Standar</th><td>${c.module.iso_standard}</td></tr>` : ''}
+          <tr><th>Nilai</th><td>${c.attempt.score} (lulus, minimal ${c.module.pass_score})</td></tr>
+          <tr><th>Tanggal</th><td>${formatDate(c.attempt.created_at)}</td></tr>
+          <tr><th>Penerbit</th><td>${c.module.cert_org || c.ownerName}</td></tr>
+        </table>
+      </div>` : html`
+      <div class="panel narrow center">
+        <div class="verify bad">✘</div>
+        <h1>Sertifikat tidak ditemukan</h1>
+        <p class="muted">Nomor sertifikat tidak terdaftar atau sudah dibatalkan oleh penyelenggara.</p>
+      </div>`,
   }));
 });
 

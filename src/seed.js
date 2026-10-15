@@ -10,6 +10,7 @@ const MODULES = [
       iso_standard: 'ISO/IEC 27001:2022',
       description: 'Pengenalan Sistem Manajemen Keamanan Informasi (SMKI) dan peran setiap karyawan dalam menjaga informasi.',
       access: 'token',
+      cert: ['PT Contoh Sejahtera', 'Jakarta', 'Andi Wijaya', 'Information Security Officer'],
       content: `## Apa itu ISO/IEC 27001?
 ISO/IEC 27001 adalah standar internasional untuk Sistem Manajemen Keamanan Informasi (SMKI / ISMS). Standar ini membantu organisasi melindungi informasi secara sistematis melalui penilaian risiko dan penerapan kontrol.
 
@@ -40,6 +41,7 @@ ISO/IEC 27001 adalah standar internasional untuk Sistem Manajemen Keamanan Infor
       iso_standard: 'ISO 9001:2015',
       description: 'Dasar-dasar ISO 9001: prinsip manajemen mutu, siklus PDCA, dan fokus pada pelanggan.',
       access: 'public',
+      cert: ['PT Contoh Sejahtera', 'Jakarta', 'Rina Kusuma', 'Management Representative'],
       content: `## Apa itu ISO 9001?
 ISO 9001 adalah standar internasional untuk Sistem Manajemen Mutu (SMM). Tujuannya memastikan organisasi secara konsisten menghasilkan produk/jasa yang memenuhi persyaratan pelanggan dan regulasi.
 
@@ -74,8 +76,9 @@ module.exports = function seed() {
       const adminId = db.prepare('INSERT INTO admins (username, display_name, password_hash) VALUES (?,?,?)')
         .run(s.admin.username, s.admin.display_name, hashPassword(s.admin.password)).lastInsertRowid;
       const m = s.module;
-      const moduleId = db.prepare(`INSERT INTO modules (admin_id, title, iso_standard, description, content, access, published)
-        VALUES (?,?,?,?,?,?,1)`).run(adminId, m.title, m.iso_standard, m.description, m.content, m.access).lastInsertRowid;
+      const moduleId = db.prepare(`INSERT INTO modules (admin_id, title, iso_standard, description, content, access, published,
+        cert_org, cert_city, cert_signer_name, cert_signer_title)
+        VALUES (?,?,?,?,?,?,1,?,?,?,?)`).run(adminId, m.title, m.iso_standard, m.description, m.content, m.access, ...m.cert).lastInsertRowid;
       s.questions.forEach((q, i) => db.prepare(`INSERT INTO questions (module_id, text, option_a, option_b, option_c, option_d, correct, explanation, sort_order)
         VALUES (?,?,?,?,?,?,?,?,?)`).run(moduleId, ...q, i + 1));
       const codes = s.tokens.map((name) => {

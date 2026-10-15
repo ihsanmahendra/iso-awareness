@@ -17,7 +17,20 @@ Peserta membaca materi lalu mengerjakan kuis pilihan ganda (a, b, c, d). Admin m
 - Soal: tambah, edit, hapus, ubah urutan, **import massal** (satu baris per soal):
   `Pertanyaan | pilihan a | pilihan b | pilihan c | pilihan d | jawaban (a/b/c/d) | pembahasan`
 - Token peserta: dibuat **atas nama** peserta (satu nama per baris) atau tanpa nama sejumlah tertentu. Bisa diatur maksimal kesempatan mengerjakan dan tanggal berlaku. Token bisa dinonaktifkan, di-reset, dihapus, dan diunduh sebagai CSV.
-- Hasil: daftar peserta, nilai, status lulus, dan statistik modul, bisa diunduh sebagai CSV.
+- **Peserta & Rekap** (per modul): daftar siapa saja yang sudah mengerjakan (nilai terbaik, jumlah percobaan, status lulus),
+  daftar pemegang token yang **belum mengerjakan**, rekap per departemen, analisis soal (% jawaban benar per soal),
+  riwayat semua pengerjaan, dan detail jawaban tiap peserta. Bisa dicari dan difilter per status atau rentang tanggal.
+  Bisa diunduh sebagai CSV (rekap peserta / riwayat).
+- **Rekap** (menu atas): ringkasan semua modul milik admin, rekap per modul dan matriks peserta × modul, bisa difilter
+  per tanggal dan diunduh sebagai CSV.
+
+**Sertifikat**
+- Peserta yang lulus mendapat sertifikat PDF (A4 landscape) dengan nomor unik dan QR code verifikasi.
+- Peserta mengunduhnya dari halaman hasil kuis, atau kapan saja lewat menu **Sertifikat** dengan token atau nomor sertifikat.
+- Halaman `/verify/<nomor>` (tujuan QR code) menampilkan keabsahan sertifikat.
+- Admin mengatur nama organisasi, kota, nama dan jabatan penanda tangan per modul (Edit Modul), melihat pratinjau,
+  mengunduh sertifikat per peserta, atau mengunduh semua sertifikat sekaligus dalam satu PDF.
+- Menghapus hasil peserta otomatis membatalkan sertifikatnya.
 
 **Super Admin**
 - Menambah dan menghapus akun admin serta mereset password admin (menu *Kelola Admin*).
@@ -70,6 +83,7 @@ Saat pertama kali dijalankan, aplikasi membuat:
 | `SESSION_SECRET` | dibuat otomatis | Secret cookie sesi |
 | `COOKIE_SECURE` | `0` | Isi `1` jika memakai HTTPS |
 | `TRUST_PROXY` | `0` | Isi `1` jika di belakang reverse proxy (nginx, dll.) |
+| `BASE_URL` | otomatis | Alamat publik aplikasi untuk link/QR verifikasi di sertifikat, mis. `https://training.perusahaan.co.id` |
 
 Contoh produksi:
 ```bash
@@ -84,7 +98,10 @@ Untuk reset total, hentikan server lalu hapus folder `data/`.
 server.js              entry point, sesi, keamanan dasar
 src/db.js              skema SQLite (admins, modules, questions, tokens, attempts)
 src/routes/public.js   halaman peserta: beranda, token, materi, kuis, hasil
-src/routes/admin.js    panel admin: modul, soal, token, hasil, kelola admin
+src/routes/admin.js    panel admin: modul, soal, token, kelola admin
+src/routes/admin-results.js  peserta, rekap, detail jawaban, sertifikat (admin)
+src/stats.js           perhitungan rekap
+src/certificate.js     pembuat sertifikat PDF + QR code
 src/views.js           template HTML (auto-escape)
 src/seed.js            data demo
 public/style.css       tampilan (mendukung mode gelap)

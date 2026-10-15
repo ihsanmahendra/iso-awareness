@@ -44,11 +44,12 @@ function layout(req, { title, body, area = 'public' }) {
   const nav = area === 'admin' && admin
     ? html`<nav>
         <a href="/admin">Modul Saya</a>
+        <a href="/admin/recap">Rekap</a>
         ${admin.role === 'super' ? html`<a href="/admin/users">Kelola Admin</a>` : ''}
         <a href="/admin/password">Ganti Password</a>
         <form method="post" action="/admin/logout" class="inline"><button class="link">Keluar (${admin.username})</button></form>
       </nav>`
-    : html`<nav><a href="/">Beranda</a><a href="/admin">Admin</a></nav>`;
+    : html`<nav><a href="/">Beranda</a><a href="/sertifikat">Sertifikat</a><a href="/admin">Admin</a></nav>`;
 
   return '<!doctype html>' + html`
 <html lang="id">

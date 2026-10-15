@@ -1,4 +1,5 @@
 const { DatabaseSync } = require('node:sqlite');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -81,6 +82,19 @@ CREATE INDEX IF NOT EXISTS idx_tokens_module ON tokens(module_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_module ON attempts(module_id);
 `);
 
+// ---------- Migrasi untuk database lama ----------
+function addColumn(table, column, def) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+}
+addColumn('modules', 'cert_enabled', 'INTEGER NOT NULL DEFAULT 1');
+addColumn('modules', 'cert_org', "TEXT NOT NULL DEFAULT ''");
+addColumn('modules', 'cert_signer_name', "TEXT NOT NULL DEFAULT ''");
+addColumn('modules', 'cert_signer_title', "TEXT NOT NULL DEFAULT ''");
+addColumn('modules', 'cert_city', "TEXT NOT NULL DEFAULT ''");
+addColumn('attempts', 'cert_code', 'TEXT');
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_cert ON attempts(cert_code)');
+
 function tx(fn) {
   db.exec('BEGIN');
   try {
@@ -93,4 +107,22 @@ function tx(fn) {
   }
 }
 
-module.exports = { db, tx };
+// Nomor sertifikat unik, mis. ISO-2026-K7QM3XRA
+const CERT_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newCertCode() {
+  const exists = db.prepare('SELECT 1 FROM attempts WHERE cert_code = ?');
+  let code;
+  do {
+    let s = '';
+    for (let i = 0; i < 8; i++) s += CERT_ALPHABET[crypto.randomInt(CERT_ALPHABET.length)];
+    code = `ISO-${new Date().getFullYear()}-${s}`;
+  } while (exists.get(code));
+  return code;
+}
+
+// Beri nomor sertifikat untuk kelulusan lama yang belum punya.
+for (const a of db.prepare('SELECT id FROM attempts WHERE passed = 1 AND cert_code IS NULL').all()) {
+  db.prepare('UPDATE attempts SET cert_code = ? WHERE id = ?').run(newCertCode(), a.id);
+}
+
+module.exports = { db, tx, newCertCode };
