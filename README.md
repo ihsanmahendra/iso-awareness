@@ -35,6 +35,26 @@ Peserta membaca materi lalu mengerjakan kuis pilihan ganda (a, b, c, d). Admin m
 **Super Admin**
 - Menambah dan menghapus akun admin serta mereset password admin (menu *Kelola Admin*).
 
+## Versi statis (tanpa instalasi / GitHub Pages)
+
+Folder [`docs/`](docs) berisi versi ringan yang berjalan sepenuhnya di browser, tanpa Node.js dan tanpa database.
+
+- **Buka langsung:** klik dua kali `docs/index.html`.
+- **Online lewat GitHub Pages:** di halaman repo GitHub buka **Settings → Pages**, pada *Build and deployment* pilih
+  *Source: Deploy from a branch*, *Branch: `main`*, folder **`/docs`**, lalu **Save**. Setelah 1–2 menit situs tersedia di
+  `https://<username>.github.io/iso-awareness/`.
+
+Isi modul (materi, soal, kunci, nilai lulus, kode akses, data sertifikat) diatur di [`docs/data/modul.js`](docs/data/modul.js).
+Edit file itu, simpan, dan push; GitHub Pages ikut ter-update. Kode akses modul demo ISO 27001: `SMKI2026`.
+
+Peserta mengisi nama, membaca materi, mengerjakan kuis, lalu melihat nilai dan pembahasan. Jika lulus, sertifikat bisa
+disimpan sebagai PDF lewat tombol **Unduh PDF / Cetak** (pilih *Simpan sebagai PDF*, orientasi lanskap).
+
+Perbedaan dengan versi server:
+- Tidak ada panel admin, token per peserta, rekap terpusat, atau verifikasi QR. Hasil dan sertifikat hanya tersimpan di browser peserta.
+- Kunci jawaban dan kode akses ada di `modul.js`, jadi bisa dilihat siapa pun yang membuka kode sumber. Pakai versi server
+  jika nilai harus terkumpul atau kuis dipakai sebagai ujian resmi.
+
 ## Cara menjalankan (untuk pemula)
 
 **Langkah 1 – Pasang Node.js (sekali saja)**
