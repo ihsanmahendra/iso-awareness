@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desain Sertifikat · ISO Awareness</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="admin">
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="admin.html"><span class="logo">ISO</span> Awareness · Admin</a>
+    <nav><a href="admin.html">Desain Sertifikat</a><a href="index.html">Lihat Situs</a></nav>
+  </div>
+</header>
+<main class="wrap">
+  <h1>Desain Sertifikat</h1>
+  <p class="muted">Atur logo, latar, tanda tangan, warna, dan teks sertifikat. Perubahan tersimpan sebagai draf di browser ini
+    dan baru berlaku untuk peserta setelah file desain diunggah ke repo (lihat langkah di bawah).</p>
+
+  <div class="designer">
+    <form id="desain" class="panel stack">
+      <fieldset class="group">
+        <legend>Gambar</legend>
+        <div class="img-field" data-key="logo">
+          <label>Logo <span class="muted small">(PNG transparan disarankan)</span><input type="file" accept="image/*"></label>
+          <div class="img-row"><img alt=""><button type="button" class="small danger">Hapus</button></div>
+        </div>
+        <label>Posisi logo
+          <select name="posisiLogo">
+            <option value="tengah">Tengah atas</option>
+            <option value="kiri">Kiri atas</option>
+            <option value="kanan">Kanan atas</option>
+          </select>
+        </label>
+        <div class="img-field" data-key="latar">
+          <label>Gambar latar (background) <span class="muted small">(lanskap, rasio A4)</span><input type="file" accept="image/*"></label>
+          <div class="img-row"><img alt=""><button type="button" class="small danger">Hapus</button></div>
+        </div>
+        <div class="img-field" data-key="tandaTangan">
+          <label>Tanda tangan <span class="muted small">(PNG transparan)</span><input type="file" accept="image/*"></label>
+          <div class="img-row"><img alt=""><button type="button" class="small danger">Hapus</button></div>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Warna</legend>
+        <div class="grid2">
+          <label>Warna utama<input type="color" name="warnaUtama"></label>
+          <label>Warna aksen<input type="color" name="warnaAksen"></label>
+          <label>Warna teks<input type="color" name="warnaTeks"></label>
+          <label>Warna latar<input type="color" name="warnaLatar"></label>
+        </div>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="bingkai"> Tampilkan bingkai</label>
+          <label class="check"><input type="checkbox" name="tampilNilai"> Tampilkan nilai</label>
+        </div>
+      </fieldset>
+
+      <fieldset class="group">
+        <legend>Teks</legend>
+        <label>Judul<input name="judul" maxlength="40"></label>
+        <label>Subjudul<input name="subjudul" maxlength="80"></label>
+        <label>Kalimat pengantar<input name="teksPengantar" maxlength="160"></label>
+        <p class="muted small">Nama organisasi, kota, dan penanda tangan diatur per modul di <code>data/modul.js</code>.</p>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" id="reset" class="danger">Kembalikan ke desain terpasang</button>
+      </div>
+    </form>
+
+    <div class="preview-col">
+      <div class="panel">
+        <div class="head-row">
+          <h2>Pratinjau</h2>
+          <label class="inline-label">Modul
+            <select id="modulPreview"></select>
+          </label>
+        </div>
+        <canvas id="preview" class="cert-canvas"></canvas>
+        <div class="actions">
+          <button type="button" class="primary" id="export">Unduh file desain</button>
+          <button type="button" id="contoh">Unduh PDF contoh</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Cara memasang desain</h2>
+        <ol class="steps">
+          <li>Klik <b>Unduh file desain</b>. Anda mendapat file <code>desain-sertifikat.js</code>.</li>
+          <li>Buka <a id="uploadLink" href="#" target="_blank" rel="noopener">halaman unggah folder <code>docs/data</code> di GitHub</a>.</li>
+          <li>Seret file tadi ke halaman itu (menimpa file lama), lalu klik <b>Commit changes</b>.</li>
+          <li>Tunggu 1–2 menit. Sertifikat peserta otomatis memakai desain baru.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="wrap muted small">ISO Awareness Training</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
+<script src="data/modul.js"></script>
+<script src="data/desain-sertifikat.js"></script>
+<script src="sertifikat.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

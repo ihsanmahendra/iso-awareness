@@ -48,10 +48,18 @@ Isi modul (materi, soal, kunci, nilai lulus, kode akses, data sertifikat) diatur
 Edit file itu, simpan, dan push; GitHub Pages ikut ter-update. Kode akses modul demo ISO 27001: `SMKI2026`.
 
 Peserta mengisi nama, membaca materi, mengerjakan kuis, lalu melihat nilai dan pembahasan. Jika lulus, sertifikat bisa
-disimpan sebagai PDF lewat tombol **Unduh PDF / Cetak** (pilih *Simpan sebagai PDF*, orientasi lanskap).
+diunduh sebagai PDF.
+
+**Desain sertifikat (admin):** buka `admin.html` (tautan *Admin* di bagian bawah situs). Di sana Anda bisa mengunggah logo,
+gambar latar, dan tanda tangan, mengatur warna dan teks, serta melihat pratinjau langsung. Klik **Unduh file desain**, lalu
+unggah `desain-sertifikat.js` hasil unduhan ke folder `docs/data/` di GitHub (menimpa file lama).
+
+**Kirim ke email peserta:** pasang backend Google Apps Script sesuai [`apps-script/README.md`](apps-script/README.md), lalu isi
+`emailEndpoint` di [`docs/data/pengaturan.js`](docs/data/pengaturan.js). Setelah aktif, peserta wajib mengisi email. Hasil kuis
+langsung dikirim ke email tersebut, dengan sertifikat PDF terlampir jika peserta lulus. Setiap hasil juga tercatat di Google Sheet.
 
 Perbedaan dengan versi server:
-- Tidak ada panel admin, token per peserta, rekap terpusat, atau verifikasi QR. Hasil dan sertifikat hanya tersimpan di browser peserta.
+- Tidak ada token per peserta atau verifikasi QR. Rekap terpusat hanya tersedia lewat Google Sheet jika kirim email diaktifkan.
 - Kunci jawaban dan kode akses ada di `modul.js`, jadi bisa dilihat siapa pun yang membuka kode sumber. Pakai versi server
   jika nilai harus terkumpul atau kuis dipakai sebagai ujian resmi.
 

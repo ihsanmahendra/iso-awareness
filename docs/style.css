@@ -175,38 +175,22 @@ table.kv th { width: 120px; text-transform: none; letter-spacing: 0; font-size: 
 td code { white-space: nowrap; }
 .cert-item .btn { white-space: nowrap; flex-shrink: 0; }
 
-/* ---------- Sertifikat (versi statis, siap cetak) ---------- */
-.cert-scroll { overflow-x: auto; }
-.cert {
-  --navy: #1e3a8a; --gold: #b08d3c; --ink: #1f2937; --gray: #6b7280;
-  container-type: inline-size; position: relative; width: 100%; min-width: 320px; aspect-ratio: 297 / 210;
-  background: #fcfbf7; color: var(--ink); text-align: center; border: 0.7cqw solid var(--navy);
-  font-family: Helvetica, Arial, sans-serif; overflow: hidden;
-  -webkit-print-color-adjust: exact; print-color-adjust: exact;
-}
-.cert-frame { position: absolute; inset: 1.2cqw; border: 0.2cqw solid var(--gold); pointer-events: none; }
-.cert-frame::before { content: ''; position: absolute; left: 50%; top: -0.2cqw; width: 14cqw; height: 0.7cqw; transform: translateX(-50%); background: var(--navy); }
-.cert > div:not(.cert-frame) { position: relative; padding: 0 8cqw; }
-.c-org { margin-top: 5cqw; font-weight: 700; color: var(--navy); font-size: 1.4cqw; letter-spacing: .25cqw; text-transform: uppercase; }
-.c-title { margin-top: 1cqw; font-family: "Times New Roman", Times, serif; font-weight: 700; color: var(--navy); font-size: 5.6cqw; letter-spacing: .9cqw; line-height: 1.1; }
-.c-sub { color: var(--gold); font-size: 1.3cqw; letter-spacing: .45cqw; }
-.c-no { color: var(--gray); font-size: 1.05cqw; margin-top: .4cqw; }
-.c-given { color: var(--gray); font-size: 1.4cqw; margin-top: 3cqw; }
-.c-name { font-family: "Times New Roman", Times, serif; font-style: italic; font-weight: 700; font-size: 4.2cqw; line-height: 1.25; margin: .4cqw auto 0; display: inline-block; border-bottom: 0.12cqw solid var(--gold); padding: 0 3cqw !important; min-width: 50%; }
-.c-dept { color: var(--gray); font-size: 1.2cqw; margin-top: .4cqw; }
-.c-text { font-size: 1.4cqw; margin-top: 2cqw; }
-.c-module { color: var(--navy); font-weight: 700; font-size: 2.1cqw; margin-top: .6cqw; }
-.c-std { color: var(--gold); font-weight: 700; font-size: 1.4cqw; }
-.c-score { color: var(--gray); font-size: 1.3cqw; margin-top: 1cqw; }
-.c-sign { position: absolute !important; right: 7cqw; bottom: 5.5cqw; width: 26cqw; padding: 0 !important; font-size: 1.2cqw; }
-.c-sign b { font-size: 1.3cqw; }
-.c-line { border-top: 0.1cqw solid var(--ink); margin: 5cqw 2cqw .6cqw; }
-.c-role { color: var(--gray); font-size: 1.05cqw; }
-
-@media print {
-  @page { size: A4 landscape; margin: 0; }
-  body.cert-mode { background: #fff; }
-  body.cert-mode .topbar, body.cert-mode footer, body.cert-mode .no-print, body.cert-mode .flash { display: none !important; }
-  body.cert-mode main.wrap { max-width: none; padding: 0; margin: 0; min-height: 0; }
-  body.cert-mode .cert { width: 297mm; height: 209mm; aspect-ratio: auto; break-inside: avoid; }
-}
+/* ---------- Sertifikat & desain (versi statis) ---------- */
+.cert-canvas { display: block; width: 100%; height: auto; aspect-ratio: 297 / 210; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.25); background: #fff; }
+.designer { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 18px; align-items: start; }
+.designer > form { margin: 0; }
+.preview-col { position: sticky; top: 12px; }
+@media (max-width: 860px) { .designer { grid-template-columns: 1fr; } .preview-col { position: static; } }
+input[type=color] { padding: 2px; height: 40px; cursor: pointer; }
+input[type=file] { padding: 7px; font-size: .88rem; }
+.img-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.img-row[hidden] { display: none; }
+.img-row img { max-height: 48px; max-width: 160px; border: 1px solid var(--border); border-radius: 6px; background: repeating-conic-gradient(#ddd 0 25%, #fff 0 50%) 0 0 / 12px 12px; }
+.inline-label { flex-direction: row; align-items: center; gap: 8px; }
+.inline-label select { width: auto; max-width: 240px; }
+.steps { padding-left: 1.2em; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.send-box { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+.send-box input { flex: 1; min-width: 200px; }
+.send-status { font-size: .9rem; }
+.send-status.ok { color: var(--ok); }
+.send-status.bad { color: var(--bad); }

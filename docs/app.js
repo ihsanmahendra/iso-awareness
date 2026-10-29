@@ -8,6 +8,7 @@
   const LETTERS = ['A', 'B', 'C', 'D'];
   const KEY_HASIL = 'isoAwareness.hasil';
   const KEY_PESERTA = 'isoAwareness.peserta';
+  const EMAIL_URL = String((window.ISO_PENGATURAN || {}).emailEndpoint || '').trim();
   const app = document.getElementById('app');
 
   // ---------- Util ----------
@@ -79,6 +80,89 @@
   }
   const allHasil = () => load(KEY_HASIL, []);
   const findHasil = (id) => allHasil().find((h) => h.id === id);
+  function updateHasil(id, patch) {
+    save(KEY_HASIL, allHasil().map((h) => (h.id === id ? { ...h, ...patch } : h)));
+  }
+  const validEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || '').trim());
+
+  function dataSertifikat(h, m) {
+    const s = m.sertifikat || {};
+    return {
+      nama: h.nama, departemen: h.departemen, noSertifikat: h.noSertifikat,
+      nilai: h.nilai, benar: h.benar, total: h.total, tanggal: h.tanggal,
+      judulModul: m.judul, standar: m.standar,
+      organisasi: s.organisasi, kota: s.kota, penandatangan: s.penandatangan, jabatan: s.jabatan,
+    };
+  }
+
+  // ---------- Kirim email (lewat Google Apps Script) ----------
+  // Hasil kuis dikirim ke email peserta; jika lulus, sertifikat PDF ikut dilampirkan.
+  async function kirimEmail(h, email) {
+    const m = findModul(h.modulId);
+    let pdf = null;
+    if (h.lulus) {
+      const canvas = await Sertifikat.gambar(document.createElement('canvas'), dataSertifikat(h, m), window.ISO_DESAIN);
+      pdf = Sertifikat.pdfBase64(canvas);
+    }
+    // text/plain agar tidak memicu preflight CORS yang tidak didukung Apps Script.
+    const res = await fetch(EMAIL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        email: email.trim(), nama: h.nama, departemen: h.departemen,
+        modul: m.judul, standar: m.standar, nilai: h.nilai, benar: h.benar, total: h.total,
+        nilaiLulus: m.nilaiLulus, lulus: h.lulus, noSertifikat: h.noSertifikat, tanggal: h.tanggal,
+        pdf, namaFile: Sertifikat.namaFile(dataSertifikat(h, m)) + '.pdf',
+      }),
+    });
+    const out = await res.json().catch(() => ({ ok: false, error: 'Balasan server tidak dikenali.' }));
+    if (!out.ok) throw new Error(out.error || 'Gagal mengirim email.');
+  }
+
+  // Kotak "kirim ke email" di halaman hasil dan sertifikat.
+  function sendBox(h) {
+    if (!EMAIL_URL) return '';
+    const st = h.emailStatus === 'terkirim' ? `<span class="send-status ok">✓ Terkirim ke ${esc(h.email)}</span>` : '';
+    return `
+      <form class="send-box" id="sendForm">
+        <input type="email" name="email" required placeholder="nama@perusahaan.co.id" value="${esc(h.email || '')}">
+        <button>${h.emailStatus === 'terkirim' ? 'Kirim ulang' : 'Kirim ke email'}</button>
+        <span class="send-status" id="sendStatus">${st}</span>
+      </form>`;
+  }
+
+  function bindSendBox(h, auto) {
+    const form = document.getElementById('sendForm');
+    if (!form) return;
+    const status = document.getElementById('sendStatus');
+    const btn = form.querySelector('button');
+    async function kirim(email) {
+      btn.disabled = true;
+      // Ditandai lebih dulu agar tidak terkirim dua kali jika halaman dibuka ulang.
+      updateHasil(h.id, { email, emailStatus: 'mengirim' });
+      status.className = 'send-status';
+      status.textContent = `Mengirim ke ${email}...`;
+      try {
+        await kirimEmail(h, email);
+        updateHasil(h.id, { email, emailStatus: 'terkirim' });
+        status.className = 'send-status ok';
+        status.textContent = `✓ Terkirim ke ${email}`;
+        btn.textContent = 'Kirim ulang';
+      } catch (err) {
+        updateHasil(h.id, { email, emailStatus: 'gagal' });
+        status.className = 'send-status bad';
+        status.textContent = `Gagal mengirim: ${err.message}`;
+      }
+      btn.disabled = false;
+    }
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = String(new FormData(form).get('email')).trim();
+      if (!validEmail(email)) { status.className = 'send-status bad'; status.textContent = 'Alamat email tidak valid.'; return; }
+      kirim(email);
+    });
+    if (auto && h.email && !h.emailStatus) kirim(h.email);
+  }
 
   let flashMsg = null;
   function flash(type, msg) { flashMsg = { type, msg }; }
@@ -86,7 +170,6 @@
 
   function render(title, body) {
     document.title = (title ? title + ' · ' : '') + 'ISO Awareness';
-    document.body.classList.remove('cert-mode');
     const f = flashMsg ? `<div class="flash ${flashMsg.type}">${esc(flashMsg.msg)}</div>` : '';
     flashMsg = null;
     app.innerHTML = f + body;
@@ -139,6 +222,10 @@
           <label>Departemen / Unit <span class="muted small">(opsional)</span>
             <input name="departemen" maxlength="100" value="${esc(p.departemen || '')}">
           </label>
+          ${EMAIL_URL ? `
+            <label>Email <span class="muted small">(hasil kuis dan sertifikat dikirim ke sini)</span>
+              <input name="email" type="email" maxlength="200" required value="${esc(p.email || '')}">
+            </label>` : ''}
           <button class="primary">Mulai Belajar</button>
         </form>
       </div>`);
@@ -153,6 +240,7 @@
       setPeserta(m.id, {
         nama: String(fd.get('nama')).trim().slice(0, 100),
         departemen: String(fd.get('departemen') || '').trim().slice(0, 100),
+        email: String(fd.get('email') || '').trim().slice(0, 200),
       });
       go(`/m/${m.id}/materi`);
     });
@@ -215,6 +303,7 @@
         modulId: m.id,
         nama: p.nama,
         departemen: p.departemen,
+        email: p.email || '',
         nilai, benar, total, lulus,
         tanggal: new Date().toISOString(),
         jawaban,
@@ -261,8 +350,10 @@
             <a class="btn primary" href="#/m/${encodeURIComponent(m.id)}/materi">Pelajari lagi</a>
             <a class="btn" href="#/m/${encodeURIComponent(m.id)}/kuis">Coba lagi</a>
           </div>`}
+        ${EMAIL_URL ? `<p class="muted small">${h.lulus ? 'Kirim hasil dan sertifikat PDF ke email:' : 'Kirim hasil kuis ke email:'}</p>${sendBox(h)}` : ''}
       </div>
       ${review ? `<div class="panel">${review}</div>` : ''}`);
+    bindSendBox(h, true);
   }
 
   // ---------- Daftar sertifikat ----------
@@ -287,42 +378,23 @@
       </div>`);
   }
 
-  // ---------- Sertifikat (siap cetak / simpan PDF) ----------
+  // ---------- Sertifikat ----------
   function sertifikat(h) {
     const m = findModul(h.modulId);
     if (!m || !h.lulus) return notFound();
-    const s = m.sertifikat || {};
-    const tgl = formatDate(h.tanggal);
+    const data = dataSertifikat(h, m);
     render('Sertifikat ' + h.nama, `
-      <div class="actions no-print" style="margin:0 0 16px">
-        <button class="primary" id="print">Unduh PDF / Cetak</button>
+      <div class="actions" style="margin:0 0 16px">
+        <button class="primary" id="unduh" disabled>Unduh PDF</button>
         <a class="btn" href="#/sertifikat">Kembali</a>
-        <span class="muted small">Pilih “Simpan sebagai PDF” di jendela cetak, orientasi lanskap.</span>
       </div>
-      <div class="cert-scroll">
-        <div class="cert">
-          <div class="cert-frame"></div>
-          ${s.organisasi ? `<div class="c-org">${esc(s.organisasi)}</div>` : ''}
-          <div class="c-title">SERTIFIKAT</div>
-          <div class="c-sub">ISO AWARENESS TRAINING</div>
-          <div class="c-no">Nomor: ${esc(h.noSertifikat)}</div>
-          <div class="c-given">Diberikan kepada:</div>
-          <div class="c-name">${esc(h.nama)}</div>
-          ${h.departemen ? `<div class="c-dept">${esc(h.departemen)}</div>` : ''}
-          <div class="c-text">atas keberhasilannya menyelesaikan dan lulus evaluasi pelatihan</div>
-          <div class="c-module">${esc(m.judul)}</div>
-          ${m.standar ? `<div class="c-std">${esc(m.standar)}</div>` : ''}
-          <div class="c-score">dengan nilai ${h.nilai} (benar ${h.benar} dari ${h.total} soal) pada ${tgl}</div>
-          <div class="c-sign">
-            <div>${s.kota ? esc(s.kota) + ', ' : ''}${tgl}</div>
-            <div class="c-line"></div>
-            <b>${esc(s.penandatangan || '')}</b>
-            <div class="c-role">${esc(s.jabatan || 'Penyelenggara')}</div>
-          </div>
-        </div>
-      </div>`);
-    document.body.classList.add('cert-mode');
-    document.getElementById('print').addEventListener('click', () => window.print());
+      <canvas id="cert" class="cert-canvas"></canvas>
+      ${EMAIL_URL ? `<div class="panel" style="margin-top:16px"><b>Kirim sertifikat ke email</b>${sendBox(h)}</div>` : ''}`);
+    const canvas = document.getElementById('cert');
+    const btn = document.getElementById('unduh');
+    Sertifikat.gambar(canvas, data, window.ISO_DESAIN).then(() => { btn.disabled = false; });
+    btn.addEventListener('click', () => Sertifikat.unduh(canvas, data));
+    bindSendBox(h, false);
   }
 
   // ---------- Router ----------
